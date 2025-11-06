@@ -1,71 +1,206 @@
-# 主动故障注入与多源异常数据收集系统 (MONI)
+# MONI项目完整工作流解析
 
-## 🎯 项目概述
-完整的"观测器-执行器-注入器"系统，用于主动制造并捕获多源异常，生成带有精确Ground Truth标注的数据集，用于训练和验证TSE-Matrix和MLH-AD框架。
+基于对您项目的深入分析，我为您清晰地梳理整个moni项目的工作模式和运行流程。
 
-## 🏗️ 系统架构
+## 🏗️ 项目架构概览
+
+您的moni项目采用**"观测器-执行器-注入器-聚合器"**四层架构：
+
 ```
 观测器 (Observer) ←→ 执行器 (Executor) ←→ 注入器 (Injector)
        ↓                    ↓                    ↓
-              数据聚合模块 (Aggregator)
+               数据聚合模块 (Aggregator)
                      ↓
               TSE-Matrix + Ground Truth
 ```
 
-## 📁 项目结构
+## 🔄 核心工作流程
+
+### 阶段1：实验准备
+
 ```
-moni/
-├── src/                    # 核心源代码
-│   ├── observer/          # 观测器：GPU/系统监控、日志解析
-│   ├── executor/          # 执行器：BERT训练脚本
-│   ├── injector/          # 注入器：故障注入控制
-│   ├── aggregator/        # 聚合器：数据融合、TSE-Matrix构建
-│   └── utils/             # 工具：配置加载器
-├── configs/               # YAML配置文件
-├── experiments/           # 实验编排脚本
-├── run_local_experiment.py   # 本地CPU实验（推荐）
-└── run_gpu_experiment.py     # GPU实验（Colab专用）
+配置文件 → 实验编排器 → 环境初始化
 ```
 
-## 🚀 快速开始
+- **输入**：[`configs/`](configs/)目录下的YAML配置文件
+- **处理**：[`experiments/multi_model_orchestrator.py`](experiments/multi_model_orchestrator.py:30)协调整个实验
+- **输出**：实验计划、环境检查结果
 
-### 方案1：本地运行（推荐）
+### 阶段2：监控启动
+
+```
+GPU监控 ←→ 系统监控 ←→ 训练日志监控
+```
+
+- **GPU监控**：[`src/observer/gpu_monitor.py`](src/observer/gpu_monitor.py:31) - 实时监控GPU利用率、内存、温度
+- **系统监控**：[`src/observer/system_monitor.py`](src/observer/system_monitor.py:1) - 监控CPU、内存、磁盘
+- **训练监控**：[`src/executor/train.py`](src/executor/train.py:45) - 记录训练指标和事件
+
+### 阶段3：训练执行 + 故障注入
+
+```
+模型训练 ←→ 故障注入 ←→ 异常检测
+```
+
+- **训练执行**：[`src/executor/train.py`](src/executor/train.py:245) - BERT模型训练
+- **故障注入**：[`src/injector/fault_injector.py`](src/injector/fault_injector.py:1) - 按计划注入6种故障
+- **异常检测**：实时检测NaN Loss、内存溢出等异常
+
+### 阶段4：数据聚合
+
+```
+多源数据 → 时间对齐 → 特征工程
+```
+
+- **数据聚合**：[`src/aggregator/data_aggregator.py`](src/aggregator/data_aggregator.py:1) - 合并GPU、系统、训练数据
+- **时间对齐**：按时间戳对齐所有数据源
+- **特征工程**：计算移动平均、变化率等派生特征
+
+### 阶段5：TSE-Matrix构建
+
+```
+聚合数据 → Ground Truth标注 → TSE-Matrix
+```
+
+- **矩阵构建**：[`src/aggregator/tse_matrix_builder.py`](src/aggregator/tse_matrix_builder.py:17) - 构建时间序列异常检测矩阵
+- **标注生成**：基于故障注入时间生成精确的异常标签
+- **数据存储**：保存为CSV格式供后续分析使用
+
+## 🎯 三种运行模式
+
+### 模式1：本地实验（简单验证）
+
 ```bash
-# 克隆项目
-git clone https://github.com/Shirlig-bxl/moni.git
-cd moni
-
-# 安装依赖
-pip install pandas numpy psutil
-
-# 运行完整实验
-python3 run_local_experiment.py
+python run_local_experiment.py
 ```
 
-### 方案2：Google Colab GPU实验
+**工作流**：
+
+1. 模拟训练过程生成日志
+2. 监控系统资源使用情况  
+3. 聚合数据生成简单数据集
+4. **输出**：`local_aggregated_data.csv`
+
+### 模式2：GPU实验（Colab推荐）
+
+```bash
+python run_gpu_experiment.py
+```
+
+**工作流**：
+
+1. 检查GPU环境并安装依赖
+2. 启动真实BERT模型训练
+3. 实时监控GPU使用情况
+4. 注入真实故障并收集数据
+5. **输出**：`gpu_system_metrics.csv` + `gpu_training.log`
+
+### 模式3：多模型编排（高级研究）
+
+```bash
+python experiments/multi_model_orchestrator.py --plan-name my_experiment
+```
+
+**工作流**：
+
+1. 创建包含多个模型、数据集、故障类型的实验计划
+2. 并行运行所有实验组合
+3. 使用大型数据集管理器优化存储
+4. 生成综合实验报告
+5. **输出**：大规模多模型异常检测数据集
+
+## 📁 文件生成流程
+
+```
+运行实验 → 生成原始数据 → 数据聚合 → TSE-Matrix构建
+   ↓           ↓              ↓            ↓
+监控日志     GPU指标       聚合数据    最终数据集
+训练日志    系统指标       特征工程    Ground Truth
+```
+
+**关键输出文件**：
+
+- **原始数据**：`gpu_metrics.csv`, `system_metrics.csv`, `training_metrics.csv`
+- **聚合数据**：`aggregated_data.csv`  
+- **最终数据集**：`*_tse_matrix.csv`, `*_ground_truth.csv`
+- **实验报告**：`*_report.json`, `*_metadata.yaml`
+
+## 🔧 配置驱动的工作流
+
+您的项目采用**配置驱动**的设计模式：
+
+### 1. 训练配置
+
+[`configs/training_config.yaml`](configs/training_config.yaml:1)控制：
+
+- 模型类型和参数
+- 训练超参数
+- 硬件设置（CPU/GPU）
+
+### 2. 故障配置  
+
+[`configs/fault_injection_config.yaml`](configs/fault_injection_config.yaml:1)定义：
+
+- 6种故障类型（NaN Loss、OOM、I/O瓶颈等）
+- 注入时间和持续时间
+- 故障参数和严重程度
+
+### 3. 监控配置
+
+[`configs/monitoring_config.yaml`](configs/monitoring_config.yaml:1)设置：
+
+- 监控指标选择
+- 采样频率
+- 数据存储格式
+
+## 🎪 模块交互关系
+
+```mermaid
+graph TB
+    A[配置文件] --> B[实验编排器]
+    B --> C[监控模块]
+    B --> D[训练模块] 
+    B --> E[故障注入模块]
+    C --> F[数据聚合器]
+    D --> F
+    E --> F
+    F --> G[TSE-Matrix构建器]
+    G --> H[最终数据集]
+```
+
+## 💡 简化使用建议
+
+对于您的Google Colab GPU实验，推荐**三步法**：
+
+### 第一步：环境设置
+
 ```python
-# 在Colab中运行
 !git clone https://github.com/Shirlig-bxl/moni.git
 %cd moni
-!python3 run_gpu_experiment.py
+!pip install -r requirements.txt
 ```
 
-## 📊 支持的故障类型
-1. **NaN Loss** - 梯度爆炸导致的训练不稳定
-2. **I/O瓶颈** - 数据加载延迟
-3. **资源争用** - CPU/GPU资源竞争
+### 第二步：运行实验
 
-## 📈 输出数据
-- **系统监控数据** - CPU、内存、磁盘使用率
-- **训练指标数据** - Loss、Accuracy、学习率
-- **聚合数据集** - 时间对齐的多源数据
-- **Ground Truth标注** - 精确的异常时间窗口标记
+```python
+!python run_gpu_experiment.py
+```
 
-## 🎯 研究应用
-- TSE-Matrix框架验证
-- MLH-AD算法训练
-- 异常检测研究
-- 系统监控优化
+### 第三步：获取数据
 
-## 📝 许可证
-MIT License
+```python
+import pandas as pd
+data = pd.read_csv("gpu_system_metrics.csv")
+print(f"收集了 {len(data)} 条GPU监控记录")
+```
+
+## 🎯 核心价值输出
+
+您的项目最终生成：
+
+1. **多源时间序列数据** - GPU、系统、训练指标的时间对齐数据
+2. **精确Ground Truth** - 基于故障注入的精确异常标注
+3. **TSE-Matrix格式** - 标准化的异常检测数据集格式
+4. **大规模实验数据** - 支持多模型、多数据集的批量实验
+
+这个架构设计完善，模块职责清晰，能够系统性地生成高质量的异常检测研究数据集。通过配置文件的调整，您可以轻松控制实验的复杂度、故障类型和数据规模。
