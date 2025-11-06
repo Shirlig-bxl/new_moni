@@ -17,13 +17,70 @@ import argparse
 class FaultInjector:
     """故障注入器类"""
     
-    def __init__(self):
+    def __init__(self, enable_training_hooks: bool = True):
         self.running = False
         self.injection_thread = None
         self.fault_schedule = []  # 故障注入计划
         self.start_time = None
+        self.enable_training_hooks = enable_training_hooks
+        self.training_hooks = []
+        
+        # 如果启用了训练钩子，导入相关模块
+        if enable_training_hooks:
+            try:
+                from .training_hook import create_fault_hooks_from_config
+                self.create_fault_hooks_from_config = create_fault_hooks_from_config
+            except ImportError:
+                self.enable_training_hooks = False
+                print("警告: 无法导入训练钩子模块，训练钩子功能已禁用")
         
         print("故障注入器初始化完成")
+    
+    def create_training_hooks(self, config: Dict[str, Any]) -> List[Any]:
+        """
+        从配置创建训练故障注入钩子
+        
+        Args:
+            config: 故障注入配置
+            
+        Returns:
+            故障注入钩子列表
+        """
+        if not self.enable_training_hooks:
+            print("警告: 训练钩子功能已禁用")
+            return []
+        
+        try:
+            return self.create_fault_hooks_from_config(config)
+        except Exception as e:
+            print(f"创建训练钩子失败: {e}")
+            return []
+    
+    def get_training_fault_injector(self, config: Dict[str, Any]) -> Any:
+        """
+        获取训练故障注入器回调
+        
+        Args:
+            config: 故障注入配置
+            
+        Returns:
+            TrainingFaultInjector实例
+        """
+        if not self.enable_training_hooks:
+            print("警告: 训练钩子功能已禁用")
+            return None
+        
+        try:
+            from .training_hook import TrainingFaultInjector
+            fault_injector = TrainingFaultInjector()
+            hooks = self.create_training_hooks(config)
+            for hook in hooks:
+                fault_injector.add_hook(hook)
+            print(f"已创建训练故障注入器，包含 {len(hooks)} 个钩子")
+            return fault_injector
+        except Exception as e:
+            print(f"获取训练故障注入器失败: {e}")
+            return None
     
     def schedule_fault(self, fault_type: str, delay: float, duration: float = 0, **kwargs):
         """

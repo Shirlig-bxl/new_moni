@@ -4,9 +4,10 @@ numpy>=1.21.0
 psutil>=5.8.0
 
 # GPU实验依赖（Colab中使用）
-torch>=1.9.0
-transformers>=4.20.0
+torch>=2.1.0
+transformers>=4.30.0
 datasets>=2.0.0
+numpy<2.0.0
 accelerate>=0.20.0
 evaluate>=0.4.0
 

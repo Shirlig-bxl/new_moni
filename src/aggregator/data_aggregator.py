@@ -1,6 +1,7 @@
 """
 数据聚合模块
 负责将多源监控数据（GPU、系统、训练日志）进行时间戳对齐和聚合
+支持并行处理和内存优化
 """
 
 import os
@@ -11,22 +12,125 @@ from typing import Dict, List, Optional, Tuple, Any
 import re
 import argparse
 from pathlib import Path
+import logging
+import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import gc
+
+logger = logging.getLogger(__name__)
 
 
 class DataAggregator:
     """多源数据聚合器"""
     
-    def __init__(self, time_granularity: int = 1):
+    def __init__(self, time_granularity: int = 1, use_parallel: bool = True,
+                 chunk_size: int = 10000, optimize_memory: bool = True):
         """
         初始化数据聚合器
         
         Args:
             time_granularity: 时间粒度（秒）
+            use_parallel: 是否使用并行处理
+            chunk_size: 分块处理大小
+            optimize_memory: 是否优化内存使用
         """
         self.time_granularity = time_granularity
+        self.use_parallel = use_parallel
+        self.chunk_size = chunk_size
+        self.optimize_memory = optimize_memory
         self.aggregated_data = None
         
-        print(f"数据聚合器初始化完成，时间粒度: {time_granularity}秒")
+        logger.info(f"数据聚合器初始化完成: 时间粒度={time_granularity}s, 并行={use_parallel}, 分块={chunk_size}")
+    
+    def _optimize_dataframe_memory(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        优化DataFrame内存使用
+        
+        Args:
+            df: 输入DataFrame
+            
+        Returns:
+            优化后的DataFrame
+        """
+        if not self.optimize_memory or df.empty:
+            return df
+        
+        df_optimized = df.copy()
+        
+        # 优化数值列的数据类型
+        for col in df_optimized.select_dtypes(include=[np.number]).columns:
+            col_min = df_optimized[col].min()
+            col_max = df_optimized[col].max()
+            
+            # 整数类型优化
+            if df_optimized[col].dtype == np.int64:
+                if col_min >= 0:
+                    if col_max < 255:
+                        df_optimized[col] = df_optimized[col].astype(np.uint8)
+                    elif col_max < 65535:
+                        df_optimized[col] = df_optimized[col].astype(np.uint16)
+                    elif col_max < 4294967295:
+                        df_optimized[col] = df_optimized[col].astype(np.uint32)
+                else:
+                    if col_min > -128 and col_max < 127:
+                        df_optimized[col] = df_optimized[col].astype(np.int8)
+                    elif col_min > -32768 and col_max < 32767:
+                        df_optimized[col] = df_optimized[col].astype(np.int16)
+                    elif col_min > -2147483648 and col_max < 2147483647:
+                        df_optimized[col] = df_optimized[col].astype(np.int32)
+            
+            # 浮点数类型优化
+            elif df_optimized[col].dtype == np.float64:
+                if col_min > np.finfo(np.float32).min and col_max < np.finfo(np.float32).max:
+                    df_optimized[col] = df_optimized[col].astype(np.float32)
+        
+        # 优化分类数据
+        for col in df_optimized.select_dtypes(include=['object']).columns:
+            num_unique = df_optimized[col].nunique()
+            if num_unique / len(df_optimized) < 0.5:  # 如果唯一值比例小于50%
+                df_optimized[col] = df_optimized[col].astype('category')
+        
+        original_memory = df.memory_usage(deep=True).sum() / 1024**2
+        optimized_memory = df_optimized.memory_usage(deep=True).sum() / 1024**2
+        reduction = (original_memory - optimized_memory) / original_memory * 100
+        
+        logger.info(f"内存优化: {original_memory:.2f}MB -> {optimized_memory:.2f}MB ({reduction:.1f}% 减少)")
+        
+        return df_optimized
+    
+    def _load_data_parallel(self, file_paths: List[str], load_funcs: List[callable]) -> List[pd.DataFrame]:
+        """
+        并行加载多个数据文件
+        
+        Args:
+            file_paths: 文件路径列表
+            load_funcs: 加载函数列表
+            
+        Returns:
+            数据框列表
+        """
+        if not self.use_parallel or len(file_paths) <= 1:
+            # 串行处理
+            results = []
+            for file_path, load_func in zip(file_paths, load_funcs):
+                results.append(load_func(file_path))
+            return results
+        
+        # 并行处理
+        with ProcessPoolExecutor(max_workers=min(len(file_paths), mp.cpu_count())) as executor:
+            futures = []
+            for file_path, load_func in zip(file_paths, load_funcs):
+                futures.append(executor.submit(load_func, file_path))
+            
+            results = []
+            for future in as_completed(futures):
+                try:
+                    results.append(future.result())
+                except Exception as e:
+                    logger.error(f"并行加载数据失败: {e}")
+                    results.append(pd.DataFrame())
+        
+        return results
     
     def load_gpu_metrics(self, gpu_file: str) -> pd.DataFrame:
         """

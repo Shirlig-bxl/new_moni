@@ -15,6 +15,24 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+class FaultConfig:
+    """故障配置类"""
+    
+    def __init__(self, fault_type: str, trigger_step: int, **params):
+        self.fault_type = fault_type
+        self.trigger_step = trigger_step
+        self.params = params
+    
+    @classmethod
+    def from_dict(cls, config_dict: Dict[str, Any]):
+        """从字典创建配置"""
+        return cls(
+            fault_type=config_dict['fault_type'],
+            trigger_step=config_dict['trigger_step'],
+            **config_dict.get('params', {})
+        )
+
+
 class FaultInjectionHook:
     """故障注入钩子基类"""
     
@@ -211,6 +229,62 @@ class NonConvergenceHook(FaultInjectionHook):
         
         logger.info(f"[FAULT INJECTION] 学习率已恢复为 {self.original_state['lr']}")
         self.activated = False
+
+
+class GradientExplosionHook(FaultInjectionHook):
+    """梯度爆炸注入钩子"""
+    
+    def __init__(self, trigger_step: int, explosion_factor: float = 1000.0,
+                 target_layers: List[str] = None, duration_steps: int = 3):
+        super().__init__("gradient_explosion", trigger_step,
+                        explosion_factor=explosion_factor,
+                        target_layers=target_layers or ["classifier"],
+                        duration_steps=duration_steps)
+        self.corruption_hooks = []
+        self.step_count = 0
+    
+    def _explode_gradient(self, grad):
+        """梯度爆炸函数"""
+        if torch.rand(1).item() < 0.7:  # 70%概率触发梯度爆炸
+            return grad * self.params['explosion_factor']
+        return grad
+    
+    def activate(self, trainer, model, **kwargs):
+        """激活梯度爆炸注入"""
+        if self.activated:
+            return
+            
+        logger.warning(f"[FAULT INJECTION] 激活梯度爆炸注入 - Step {self.trigger_step}, 倍数: {self.params['explosion_factor']}")
+        
+        # 为目标层注册梯度钩子
+        for name, param in model.named_parameters():
+            if any(target in name for target in self.params['target_layers']):
+                hook = param.register_hook(self._explode_gradient)
+                self.corruption_hooks.append(hook)
+                logger.info(f"[FAULT INJECTION] 已为 {name} 注册梯度爆炸钩子")
+        
+        self.activated = True
+        self.step_count = 0
+    
+    def deactivate(self, trainer, model, **kwargs):
+        """停用梯度爆炸注入"""
+        if not self.activated:
+            return
+            
+        # 移除所有梯度钩子
+        for hook in self.corruption_hooks:
+            hook.remove()
+        self.corruption_hooks.clear()
+        
+        logger.info(f"[FAULT INJECTION] 停用梯度爆炸注入")
+        self.activated = False
+    
+    def step(self):
+        """步进计数，用于控制故障持续时间"""
+        if self.activated:
+            self.step_count += 1
+            return self.step_count >= self.params['duration_steps']
+        return False
 
 
 class TrainingFaultInjector(TrainerCallback):

@@ -1,0 +1,102 @@
+created_time: '2025-11-06T12:33:58.509628'
+dataset_configs:
+- &id001
+  dataset_type: imdb_sentiment
+  split_sizes:
+    test: 20
+    train: 100
+- &id003
+  dataset_type: glue_sst2
+  split_sizes:
+    test: 20
+    train: 100
+experiment_combinations:
+- dataset_config: *id001
+  end_time: null
+  experiment_id: bert-base-uncased_imdb_sentiment_baseline
+  fault_config: &id004
+    enabled: false
+    fault_type: baseline
+  model_config: &id002
+    model_name: bert-base-uncased
+    model_type: bert_classification
+  results: null
+  start_time: null
+  status: pending
+- dataset_config: *id001
+  end_time: null
+  experiment_id: bert-base-uncased_imdb_sentiment_nan_loss
+  fault_config: &id005
+    enabled: true
+    fault_type: nan_loss
+    injection_schedule:
+    - delay: 30
+      duration: 10
+      fault_type: nan_loss
+  model_config: *id002
+  results: null
+  start_time: null
+  status: pending
+- dataset_config: *id003
+  end_time: null
+  experiment_id: bert-base-uncased_glue_sst2_baseline
+  fault_config: *id004
+  model_config: *id002
+  results: null
+  start_time: null
+  status: pending
+- dataset_config: *id003
+  end_time: null
+  experiment_id: bert-base-uncased_glue_sst2_nan_loss
+  fault_config: *id005
+  model_config: *id002
+  results: null
+  start_time: null
+  status: pending
+- dataset_config: *id001
+  end_time: null
+  experiment_id: distilbert-base-uncased_imdb_sentiment_baseline
+  fault_config: *id004
+  model_config: &id006
+    model_name: distilbert-base-uncased
+    model_type: distilbert
+  results: null
+  start_time: null
+  status: pending
+- dataset_config: *id001
+  end_time: null
+  experiment_id: distilbert-base-uncased_imdb_sentiment_nan_loss
+  fault_config: *id005
+  model_config: *id006
+  results: null
+  start_time: null
+  status: pending
+- dataset_config: *id003
+  end_time: null
+  experiment_id: distilbert-base-uncased_glue_sst2_baseline
+  fault_config: *id004
+  model_config: *id006
+  results: null
+  start_time: null
+  status: pending
+- dataset_config: *id003
+  end_time: null
+  experiment_id: distilbert-base-uncased_glue_sst2_nan_loss
+  fault_config: *id005
+  model_config: *id006
+  results: null
+  start_time: null
+  status: pending
+fault_configs:
+- *id004
+- *id005
+model_configs:
+- *id002
+- *id006
+plan_name: test_integration_plan
+total_experiments: 8
+training_config:
+  enable_fault_injection: true
+  learning_rate: 2.0e-05
+  num_train_epochs: 1
+  per_device_train_batch_size: 8

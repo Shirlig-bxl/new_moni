@@ -36,17 +36,6 @@ gpu_monitoring:
       enabled: true
       description: "GPU 功耗 (W)"
       
-    fan_speed:
-      enabled: false
-      description: "风扇转速 (%)"
-      
-    clock_graphics:
-      enabled: false
-      description: "图形时钟频率 (MHz)"
-      
-    clock_memory:
-      enabled: false
-      description: "内存时钟频率 (MHz)"
 
 # 系统监控配置
 system_monitoring:
@@ -203,37 +192,12 @@ data_storage:
     separator: ","
     timestamp_format: "%Y-%m-%d %H:%M:%S.%f"
     
-  # JSON 格式配置
-  json:
-    enabled: false
-    pretty_print: true
-    
-  # 数据压缩
-  compression:
-    enabled: false
-    format: "gzip"
-    
   # 数据轮转
   rotation:
     enabled: true
     max_file_size: "100MB"
     backup_count: 5
 
-# 实时监控配置
-realtime_monitoring:
-  enabled: false
-  
-  # Web 界面配置
-  web_interface:
-    enabled: false
-    host: "localhost"
-    port: 8080
-    
-  # 告警配置
-  alerts:
-    enabled: false
-    email_notifications: false
-    slack_notifications: false
 
 # 性能优化配置
 performance:

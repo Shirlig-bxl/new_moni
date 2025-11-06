@@ -95,41 +95,6 @@ injection_schedule:
       injection_time: 300  # 训练开始后5分钟
       duration: 1
 
-# 监控配置
-monitoring:
-  # GPU 监控
-  gpu:
-    enabled: true
-    sampling_interval: 1.0  # 秒
-    metrics:
-      - "utilization"
-      - "memory_used"
-      - "memory_total"
-      - "temperature"
-      - "power_draw"
-      
-  # 系统监控
-  system:
-    enabled: true
-    sampling_interval: 1.0  # 秒
-    metrics:
-      - "cpu_percent"
-      - "memory_percent"
-      - "disk_io"
-      - "network_io"
-      - "load_average"
-      
-  # 训练日志监控
-  training_logs:
-    enabled: true
-    log_file_pattern: "*.log"
-    parsing_rules:
-      - pattern: "loss"
-        type: "float"
-      - pattern: "accuracy"
-        type: "float"
-      - pattern: "learning_rate"
-        type: "float"
 
 # 数据聚合配置
 aggregation:
@@ -150,49 +115,3 @@ tse_matrix:
     label_before_fault: 5  # 故障前5秒开始标记
     label_after_fault: 10  # 故障后10秒结束标记
     
-# 实验配置
-experiments:
-  baseline:
-    enabled: true
-    duration: 600  # 10分钟基线实验
-    
-  fault_injection:
-    enabled: true
-    repetitions: 3  # 每种故障重复3次
-    randomize_order: true
-    
-  # 实验序列
-  experiment_sequence:
-    - name: "baseline"
-      type: "baseline"
-      duration: 600
-      
-    - name: "nan_loss_exp"
-      type: "fault_injection"
-      fault_type: "nan_loss"
-      duration: 300
-      
-    - name: "oom_exp"
-      type: "fault_injection"
-      fault_type: "oom"
-      duration: 300
-      
-    - name: "non_convergence_exp"
-      type: "fault_injection"
-      fault_type: "non_convergence"
-      duration: 400
-      
-    - name: "io_bottleneck_exp"
-      type: "fault_injection"
-      fault_type: "io_bottleneck"
-      duration: 300
-      
-    - name: "resource_competition_exp"
-      type: "fault_injection"
-      fault_type: "resource_competition"
-      duration: 400
-      
-    - name: "process_termination_exp"
-      type: "fault_injection"
-      fault_type: "process_termination"
-      duration: 200

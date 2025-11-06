@@ -10,7 +10,7 @@ import time
 import threading
 import csv
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 import subprocess
 
@@ -202,58 +202,149 @@ class SimpleLogParser:
 def generate_training_simulation():
     """生成训练模拟日志"""
     log_file = "local_training.log"
-    
-    training_logs = [
-        "2025-11-05 18:00:00 - INFO - 开始BERT-IMDB微调训练",
-        "2025-11-05 18:00:05 - INFO - 模型: bert-base-uncased, 设备: CPU",
-        "2025-11-05 18:00:10 - INFO - Epoch 1/3, Step 1/1563, Loss: 0.693, Accuracy: 0.500, LR: 2e-05",
-        "2025-11-05 18:00:15 - INFO - Epoch 1/3, Step 50/1563, Loss: 0.620, Accuracy: 0.640, LR: 1.98e-05",
-        "2025-11-05 18:00:20 - INFO - Epoch 1/3, Step 100/1563, Loss: 0.580, Accuracy: 0.720, LR: 1.96e-05",
-        "2025-11-05 18:00:25 - INFO - Epoch 1/3, Step 150/1563, Loss: 0.540, Accuracy: 0.780, LR: 1.94e-05",
-        "2025-11-05 18:00:30 - INFO - Epoch 1/3, Step 200/1563, Loss: 0.500, Accuracy: 0.820, LR: 1.92e-05",
-        
-        # 故障注入点1: NaN Loss
-        "2025-11-05 18:00:35 - WARNING - 检测到学习率异常，Loss开始不稳定",
-        "2025-11-05 18:00:36 - ERROR - Loss: nan, Accuracy: 0.000, LR: 1.90e-05",
-        "2025-11-05 18:00:37 - CRITICAL - NaN detected in loss computation",
-        "2025-11-05 18:00:40 - INFO - 训练已恢复, Loss: 0.520, Accuracy: 0.800, LR: 1.88e-05",
-        
-        "2025-11-05 18:00:45 - INFO - Epoch 1/3, Step 300/1563, Loss: 0.480, Accuracy: 0.840, LR: 1.86e-05",
-        "2025-11-05 18:00:50 - INFO - Epoch 1/3, Step 400/1563, Loss: 0.450, Accuracy: 0.860, LR: 1.84e-05",
-        
-        # 故障注入点2: I/O瓶颈
-        "2025-11-05 18:01:00 - WARNING - 数据加载速度下降，检测到I/O瓶颈",
-        "2025-11-05 18:01:05 - INFO - 数据加载延迟: 5.2s (正常: 0.1s)",
-        "2025-11-05 18:01:10 - INFO - I/O瓶颈已解决，训练继续",
-        
-        "2025-11-05 18:01:15 - INFO - Epoch 1/3, Step 500/1563, Loss: 0.420, Accuracy: 0.880, LR: 1.82e-05",
-        "2025-11-05 18:01:20 - INFO - Epoch 2/3, Step 1563/3126, Loss: 0.300, Accuracy: 0.940, LR: 1.76e-05",
-        
-        # 故障注入点3: 资源争用
-        "2025-11-05 18:01:50 - WARNING - 检测到CPU资源争用",
-        "2025-11-05 18:01:55 - INFO - CPU利用率异常: 95% (正常: 60%)",
-        "2025-11-05 18:02:00 - INFO - 资源争用已解决",
-        
-        "2025-11-05 18:02:05 - INFO - Epoch 3/3, Step 3126/3126, Loss: 0.240, Accuracy: 0.970, LR: 1.70e-05",
-        "2025-11-05 18:02:10 - INFO - 训练完成！最终验证准确率: 0.975",
-    ]
+    start_time = datetime.now()
     
     print("🚀 开始生成训练模拟日志...")
     
     with open(log_file, 'w') as f:
-        for i, log in enumerate(training_logs):
-            f.write(log + '\n')
+        # 训练开始
+        log_time = start_time
+        log_entry = f"{log_time.strftime('%Y-%m-%d %H:%M:%S')} - INFO - 开始BERT-IMDB微调训练"
+        f.write(log_entry + '\n')
+        f.flush()
+        print(f"训练进度: 4% - {log_entry.split(' - ')[-1]}")
+        time.sleep(1)
+        
+        log_time = start_time + timedelta(seconds=5)
+        log_entry = f"{log_time.strftime('%Y-%m-%d %H:%M:%S')} - INFO - 模型: bert-base-uncased, 设备: CPU"
+        f.write(log_entry + '\n')
+        f.flush()
+        time.sleep(1)
+        
+        # 正常训练阶段
+        training_steps = [
+            (10, 1, 1563, 0.693, 0.500, 2e-05),
+            (15, 50, 1563, 0.620, 0.640, 1.98e-05),
+            (20, 100, 1563, 0.580, 0.720, 1.96e-05),
+            (25, 150, 1563, 0.540, 0.780, 1.94e-05),
+            (30, 200, 1563, 0.500, 0.820, 1.92e-05),
+        ]
+        
+        for offset, step, total_steps, loss, accuracy, lr in training_steps:
+            log_time = start_time + timedelta(seconds=offset)
+            log_entry = f"{log_time.strftime('%Y-%m-%d %H:%M:%S')} - INFO - Epoch 1/3, Step {step}/{total_steps}, Loss: {loss:.3f}, Accuracy: {accuracy:.3f}, LR: {lr:.2e}"
+            f.write(log_entry + '\n')
             f.flush()
-            
-            # 显示进度
-            if i % 3 == 0:
-                progress = (i + 1) / len(training_logs) * 100
-                print(f"训练进度: {progress:.1f}% - {log.split(' - ')[-1]}")
-            
-            time.sleep(1)  # 模拟训练时间
+            print(f"训练进度: {20 + offset//2}% - {log_entry.split(' - ')[-1]}")
+            time.sleep(1)
+        
+        # 故障注入点1: NaN Loss
+        log_time = start_time + timedelta(seconds=35)
+        log_entry = f"{log_time.strftime('%Y-%m-%d %H:%M:%S')} - WARNING - 检测到学习率异常，Loss开始不稳定"
+        f.write(log_entry + '\n')
+        f.flush()
+        time.sleep(1)
+        
+        log_time = start_time + timedelta(seconds=36)
+        log_entry = f"{log_time.strftime('%Y-%m-%d %H:%M:%S')} - ERROR - Loss: nan, Accuracy: 0.000, LR: 1.90e-05"
+        f.write(log_entry + '\n')
+        f.flush()
+        time.sleep(1)
+        
+        log_time = start_time + timedelta(seconds=37)
+        log_entry = f"{log_time.strftime('%Y-%m-%d %H:%M:%S')} - CRITICAL - NaN detected in loss computation"
+        f.write(log_entry + '\n')
+        f.flush()
+        time.sleep(1)
+        
+        log_time = start_time + timedelta(seconds=40)
+        log_entry = f"{log_time.strftime('%Y-%m-%d %H:%M:%S')} - INFO - 训练已恢复, Loss: 0.520, Accuracy: 0.800, LR: 1.88e-05"
+        f.write(log_entry + '\n')
+        f.flush()
+        print("训练进度: 45% - 训练已恢复")
+        time.sleep(1)
+        
+        # 继续训练
+        recovery_steps = [
+            (45, 300, 1563, 0.480, 0.840, 1.86e-05),
+            (50, 400, 1563, 0.450, 0.860, 1.84e-05),
+        ]
+        
+        for offset, step, total_steps, loss, accuracy, lr in recovery_steps:
+            log_time = start_time + timedelta(seconds=offset)
+            log_entry = f"{log_time.strftime('%Y-%m-%d %H:%M:%S')} - INFO - Epoch 1/3, Step {step}/{total_steps}, Loss: {loss:.3f}, Accuracy: {accuracy:.3f}, LR: {lr:.2e}"
+            f.write(log_entry + '\n')
+            f.flush()
+            time.sleep(1)
+        
+        # 故障注入点2: I/O瓶颈
+        log_time = start_time + timedelta(seconds=60)
+        log_entry = f"{log_time.strftime('%Y-%m-%d %H:%M:%S')} - WARNING - 数据加载速度下降，检测到I/O瓶颈"
+        f.write(log_entry + '\n')
+        f.flush()
+        time.sleep(1)
+        
+        log_time = start_time + timedelta(seconds=65)
+        log_entry = f"{log_time.strftime('%Y-%m-%d %H:%M:%S')} - INFO - 数据加载延迟: 5.2s (正常: 0.1s)"
+        f.write(log_entry + '\n')
+        f.flush()
+        time.sleep(1)
+        
+        log_time = start_time + timedelta(seconds=70)
+        log_entry = f"{log_time.strftime('%Y-%m-%d %H:%M:%S')} - INFO - I/O瓶颈已解决，训练继续"
+        f.write(log_entry + '\n')
+        f.flush()
+        print("训练进度: 60% - I/O瓶颈已解决")
+        time.sleep(1)
+        
+        # 继续训练
+        log_time = start_time + timedelta(seconds=75)
+        log_entry = f"{log_time.strftime('%Y-%m-%d %H:%M:%S')} - INFO - Epoch 1/3, Step 500/1563, Loss: 0.420, Accuracy: 0.880, LR: 1.82e-05"
+        f.write(log_entry + '\n')
+        f.flush()
+        time.sleep(1)
+        
+        log_time = start_time + timedelta(seconds=80)
+        log_entry = f"{log_time.strftime('%Y-%m-%d %H:%M:%S')} - INFO - Epoch 2/3, Step 1563/3126, Loss: 0.300, Accuracy: 0.940, LR: 1.76e-05"
+        f.write(log_entry + '\n')
+        f.flush()
+        time.sleep(1)
+        
+        # 故障注入点3: 资源争用
+        log_time = start_time + timedelta(seconds=110)
+        log_entry = f"{log_time.strftime('%Y-%m-%d %H:%M:%S')} - WARNING - 检测到CPU资源争用"
+        f.write(log_entry + '\n')
+        f.flush()
+        time.sleep(1)
+        
+        log_time = start_time + timedelta(seconds=115)
+        log_entry = f"{log_time.strftime('%Y-%m-%d %H:%M:%S')} - INFO - CPU利用率异常: 95% (正常: 60%)"
+        f.write(log_entry + '\n')
+        f.flush()
+        time.sleep(1)
+        
+        log_time = start_time + timedelta(seconds=120)
+        log_entry = f"{log_time.strftime('%Y-%m-%d %H:%M:%S')} - INFO - 资源争用已解决"
+        f.write(log_entry + '\n')
+        f.flush()
+        print("训练进度: 80% - 资源争用已解决")
+        time.sleep(1)
+        
+        # 训练完成
+        log_time = start_time + timedelta(seconds=125)
+        log_entry = f"{log_time.strftime('%Y-%m-%d %H:%M:%S')} - INFO - Epoch 3/3, Step 3126/3126, Loss: 0.240, Accuracy: 0.970, LR: 1.70e-05"
+        f.write(log_entry + '\n')
+        f.flush()
+        time.sleep(1)
+        
+        log_time = start_time + timedelta(seconds=130)
+        log_entry = f"{log_time.strftime('%Y-%m-%d %H:%M:%S')} - INFO - 训练完成！最终验证准确率: 0.975"
+        f.write(log_entry + '\n')
+        f.flush()
+        print("训练进度: 100% - 训练完成")
     
     print(f"✅ 训练模拟完成: {log_file}")
-    return log_file
+    return log_file, start_time
 
 
 def aggregate_data_simple():

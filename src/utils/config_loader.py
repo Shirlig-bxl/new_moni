@@ -5,20 +5,29 @@ Configuration Loader Utility
 
 import yaml
 import os
-from typing import Dict, Any, Optional
+import time
+import logging
+from typing import Dict, Any, Optional, List
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 class ConfigLoader:
     """配置文件加载器"""
     
-    def __init__(self, config_dir: str = None):
+    def __init__(self, config_dir: str = None, max_retries: int = 3, retry_delay: float = 1.0):
         """
         初始化配置加载器
         
         Args:
             config_dir: 配置文件目录路径
+            max_retries: 最大重试次数
+            retry_delay: 重试延迟（秒）
         """
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
+        
         if config_dir is None:
             # 默认配置目录
             current_dir = Path(__file__).parent.parent.parent
@@ -28,6 +37,8 @@ class ConfigLoader:
             
         if not self.config_dir.exists():
             raise FileNotFoundError(f"配置目录不存在: {self.config_dir}")
+        
+        logger.info(f"配置加载器初始化完成，配置目录: {self.config_dir}")
     
     def load_config(self, config_name: str) -> Dict[str, Any]:
         """
@@ -117,10 +128,62 @@ class ConfigLoader:
         Returns:
             是否有效
         """
+        missing_keys = []
         for key_path in required_keys:
             if self.get_config_value(config, key_path) is None:
-                return False
+                missing_keys.append(key_path)
+        
+        if missing_keys:
+            logger.error(f"配置验证失败，缺少必需的键: {missing_keys}")
+            return False
+        
+        logger.info("配置验证成功")
         return True
+    
+    def load_config_with_fallback(self, config_name: str, fallback_config: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        加载配置文件，如果失败则使用回退配置
+        
+        Args:
+            config_name: 配置文件名
+            fallback_config: 回退配置
+            
+        Returns:
+            配置字典
+        """
+        try:
+            return self.load_config(config_name)
+        except Exception as e:
+            logger.warning(f"加载配置文件 {config_name} 失败，使用回退配置: {e}")
+            if fallback_config is not None:
+                return fallback_config
+            else:
+                # 提供默认回退配置
+                default_fallbacks = {
+                    "training_config": {
+                        "model_name": "bert-base-uncased",
+                        "output_dir": "./output",
+                        "logging_dir": "./logs",
+                        "max_seq_length": 512,
+                        "per_device_train_batch_size": 8,
+                        "per_device_eval_batch_size": 8,
+                        "num_train_epochs": 3,
+                        "learning_rate": 2e-5,
+                        "weight_decay": 0.01
+                    },
+                    "fault_injection_config": {
+                        "injection_schedule": {
+                            "step_based": [],
+                            "time_based": []
+                        }
+                    },
+                    "monitoring_config": {
+                        "gpu_monitoring": {"enabled": True},
+                        "system_monitoring": {"enabled": True},
+                        "log_monitoring": {"enabled": True}
+                    }
+                }
+                return default_fallbacks.get(config_name, {})
     
     def save_config(self, config: Dict[str, Any], config_name: str) -> None:
         """
